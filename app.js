@@ -1,32 +1,44 @@
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
-const md5 = require('md5');
-const bcrypt = require('bcrypt');
-
-const saltRounds = 10;
+const session = require('express-session');
+const passport = require('passport');
+const passportLocalMongoose = require('passport-local-mongoose');
 
 const app = express();
 
+app.set("view engine", "ejs");
 app.use(express.static('public'));
-
 app.use(express.urlencoded({
     extended: true
 }));
-
-app.set("view engine", "ejs");
+app.use(session({
+    secret: process.env.SECRET,
+    resave: false,
+    saveUninitialized: false
+}));
+app.use(passport.initialize());
+app.use(passport.session());
 
 mongoose.connect("mongodb://localhost:27017/userDB", {
     useNewUrlParser: true,
     useUnifiedTopology: true
 });
+mongoose.set('useCreateIndex', true);
 
 const userSchema = mongoose.Schema({
     email: String,
     password: String
 });
 
+userSchema.plugin(passportLocalMongoose);
+
 const User = mongoose.model("User", userSchema);
+
+passport.use(User.createStrategy());
+
+passport.serializeUser(User.serializeUser());
+passport.deserializeUser(User.deserializeUser());
 
 
 
@@ -44,28 +56,7 @@ app.route("/login")
 
     .post(function (req, res) {
 
-        User.findOne({
-            email: req.body.username
-        }, function (err, account) {
-            if (err) {
-                console.log(err);
-            } else if (!account) {
-                console.log("Username is wrong");
-                res.redirect("/login");
-            } else {
 
-                bcrypt.compare(req.body.password, account.password, function (error, result) {
-                    if (error) {
-                        console.log(error);
-                    } else if (result === false) {
-                        console.log("Password is wrong");
-                        res.redirect("/login");
-                    } else {
-                        res.render("secrets");
-                    };
-                });
-            };
-        });
     })
 
 ;
@@ -80,37 +71,7 @@ app.route("/register")
 
     .post(function (req, res) {
 
-        User.findOne({
-            email: req.body.username
-        }, function (err, account) {
-            if (err) {
-                console.log(err);
-            } else if (account) {
-                console.log("email already exists");
-                res.redirect("/register");
-            } else {
 
-                bcrypt.hash(req.body.password, saltRounds, function (error, hash) {
-
-                    if (error) {
-                        console.log(error);
-                    } else {
-
-                        const newUser = new User({
-                            email: req.body.username,
-                            password: hash
-                        });
-
-                        newUser.save(function (err) {
-                            if (!err) {
-                                res.render("secrets");
-                            };
-                        });
-
-                    };
-                });
-            };
-        });
     })
 
 ;
